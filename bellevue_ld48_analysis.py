@@ -28,9 +28,9 @@ bellevue_precincts = [
 # Filter data for Bellevue precincts in LD 48
 bellevue_data = df[df['Precinct'].isin(bellevue_precincts)].copy()
 
-print("=" * 80)
-print("BELLEVUE LD 48 ELECTION ANALYSIS")
-print("=" * 80)
+print("=" * 100)
+print("BELLEVUE LD 48 ELECTION ANALYSIS - BY PRECINCT")
+print("=" * 100)
 
 # Define the three races we want to analyze
 races = {
@@ -54,148 +54,135 @@ candidates = {
     }
 }
 
-# Collect results by race
-race_results = {}
+# Collect results by precinct
+precinct_results = {}
 
-for race_name, race_query in races.items():
-    race_data = bellevue_data[bellevue_data['Race'] == race_query]
+for precinct in bellevue_precincts:
+    precinct_data = bellevue_data[bellevue_data['Precinct'] == precinct]
+    precinct_results[precinct] = {}
     
-    # Get vote counts for candidates
-    prog_votes = race_data[race_data['CounterType'] == candidates[race_name]['progressive']]['SumOfCount'].sum()
-    cons_votes = race_data[race_data['CounterType'] == candidates[race_name]['conservative']]['SumOfCount'].sum()
-    total_votes = prog_votes + cons_votes
-    
-    # Calculate percentages
-    prog_pct = (prog_votes / total_votes * 100) if total_votes > 0 else 0
-    cons_pct = (cons_votes / total_votes * 100) if total_votes > 0 else 0
-    
-    race_results[race_name] = {
-        'progressive': {
-            'name': candidates[race_name]['progressive'],
-            'votes': int(prog_votes),
-            'pct': prog_pct
-        },
-        'conservative': {
-            'name': candidates[race_name]['conservative'],
-            'votes': int(cons_votes),
-            'pct': cons_pct
-        },
-        'total': int(total_votes)
-    }
+    for race_name, race_query in races.items():
+        race_data = precinct_data[precinct_data['Race'] == race_query]
+        
+        # Get vote counts for candidates
+        prog_votes = race_data[race_data['CounterType'] == candidates[race_name]['progressive']]['SumOfCount'].sum()
+        cons_votes = race_data[race_data['CounterType'] == candidates[race_name]['conservative']]['SumOfCount'].sum()
+        total_votes = prog_votes + cons_votes
+        
+        # Calculate percentages
+        prog_pct = (prog_votes / total_votes * 100) if total_votes > 0 else 0
+        cons_pct = (cons_votes / total_votes * 100) if total_votes > 0 else 0
+        
+        precinct_results[precinct][race_name] = {
+            'progressive': {
+                'name': candidates[race_name]['progressive'],
+                'votes': int(prog_votes),
+                'pct': prog_pct
+            },
+            'conservative': {
+                'name': candidates[race_name]['conservative'],
+                'votes': int(cons_votes),
+                'pct': cons_pct
+            },
+            'total': int(total_votes)
+        }
 
-# Print topline numbers
-print("\nTOPLINE RESULTS (Bellevue LD 48 Precincts Only)\n")
+# Print detailed precinct results
+print("\nPRECINCT-BY-PRECINCT RESULTS\n")
+print(f"{'Precinct':<15} {'Walen %':>8} {'Lee %':>8} {'Clark %':>8} {'Walen-Lee':>10} {'Walen-Clark':>12}")
+print("-" * 100)
 
-for race_name in ['State Senator', 'City Council Position No. 1', 'City Council Position No. 2']:
-    results = race_results[race_name]
-    prog = results['progressive']
-    cons = results['conservative']
-    
-    print(f"{race_name}:")
-    print(f"  {prog['name']:20} (Progressive): {prog['votes']:5} votes ({prog['pct']:5.1f}%)")
-    print(f"  {cons['name']:20} (Conservative):  {cons['votes']:5} votes ({cons['pct']:5.1f}%)")
-    print(f"  Total Votes: {results['total']}\n")
+walen_pcts = []
+lee_pcts = []
+clark_pcts = []
+
+for precinct in sorted(bellevue_precincts):
+    if precinct in precinct_results:
+        walen_pct = precinct_results[precinct]['State Senator']['conservative']['pct']
+        lee_pct = precinct_results[precinct]['City Council Position No. 2']['conservative']['pct']
+        clark_pct = precinct_results[precinct]['City Council Position No. 1']['conservative']['pct']
+        
+        walen_lee_diff = walen_pct - lee_pct
+        walen_clark_diff = walen_pct - clark_pct
+        
+        print(f"{precinct:<15} {walen_pct:>7.1f}% {lee_pct:>7.1f}% {clark_pct:>7.1f}% {walen_lee_diff:>9.1f}pp {walen_clark_diff:>11.1f}pp")
+        
+        walen_pcts.append(walen_pct)
+        lee_pcts.append(lee_pct)
+        clark_pcts.append(clark_pct)
+
+print("-" * 100)
+print(f"{'MEAN':<15} {np.mean(walen_pcts):>7.1f}% {np.mean(lee_pcts):>7.1f}% {np.mean(clark_pcts):>7.1f}%")
+print(f"{'STDEV':<15} {np.std(walen_pcts):>7.1f}  {np.std(lee_pcts):>7.1f}  {np.std(clark_pcts):>7.1f}")
 
 # Create comparison visualization
 fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-fig.suptitle('Bellevue LD 48 Precincts: Conservative Performance Comparison\n' + 
+fig.suptitle('Bellevue LD 48 Precincts: Conservative Performance by Precinct\n' + 
              'Walen (State Senator) vs. Lee (Council Pos. 2) and Clark (Council Pos. 1)',
              fontsize=14, fontweight='bold')
 
 # Plot 1: Walen % vs Lee %
 ax1 = axes[0]
-walen_pct = race_results['State Senator']['conservative']['pct']
-lee_pct = race_results['City Council Position No. 2']['conservative']['pct']
-clark_pct = race_results['City Council Position No. 1']['conservative']['pct']
+ax1.scatter(walen_pcts, lee_pcts, s=100, alpha=0.6, color='#1f77b4', edgecolor='black', linewidth=1.5, label='Walen vs. Lee')
 
-candidates_list = ['Walen\n(State Senator)', 'Lee\n(Council Pos. 2)', 'Clark\n(Council Pos. 1)']
-percentages = [walen_pct, lee_pct, clark_pct]
-colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+# Add reference line (perfect correlation)
+min_val = min(min(walen_pcts), min(lee_pcts))
+max_val = max(max(walen_pcts), max(lee_pcts))
+ax1.plot([min_val, max_val], [min_val, max_val], 'k--', alpha=0.3, linewidth=1.5, label='Perfect Correlation')
 
-bars1 = ax1.bar(candidates_list, percentages, color=colors, alpha=0.7, edgecolor='black', linewidth=1.5)
-ax1.set_ylabel('Conservative Vote Percentage (%)', fontsize=11, fontweight='bold')
-ax1.set_ylim(0, 100)
-ax1.set_title('Conservative Candidates Performance', fontsize=12, fontweight='bold')
-ax1.grid(axis='y', alpha=0.3, linestyle='--')
+ax1.set_xlabel('Walen % (State Senator - Conservative)', fontsize=11, fontweight='bold')
+ax1.set_ylabel('Lee % (Council Pos. 2 - Conservative)', fontsize=11, fontweight='bold')
+ax1.set_title('Walen vs. Lee Correlation by Precinct', fontsize=12, fontweight='bold')
+ax1.grid(alpha=0.3, linestyle='--')
+ax1.legend(loc='upper left', fontsize=10)
 
-# Add percentage labels on bars
-for bar, pct in zip(bars1, percentages):
-    height = bar.get_height()
-    ax1.text(bar.get_x() + bar.get_width()/2., height,
-             f'{pct:.1f}%', ha='center', va='bottom', fontweight='bold', fontsize=11)
+# Add correlation coefficient
+from scipy.stats import pearsonr
+corr_walen_lee, _ = pearsonr(walen_pcts, lee_pcts)
+ax1.text(0.98, 0.02, f'Correlation: {corr_walen_lee:.3f}', 
+         transform=ax1.transAxes, ha='right', va='bottom',
+         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5), fontsize=10)
 
-# Plot 2: Scatter plot showing correlation
+# Plot 2: Walen % vs Clark %
 ax2 = axes[1]
-ax2.scatter([walen_pct], [lee_pct], s=200, alpha=0.6, color='#1f77b4', edgecolor='black', linewidth=2, label='Walen vs. Lee')
-ax2.scatter([walen_pct], [clark_pct], s=200, alpha=0.6, color='#ff7f0e', edgecolor='black', linewidth=2, label='Walen vs. Clark')
+ax2.scatter(walen_pcts, clark_pcts, s=100, alpha=0.6, color='#ff7f0e', edgecolor='black', linewidth=1.5, label='Walen vs. Clark')
 
-# Add reference line (45 degree - perfect correlation)
-ax2.plot([30, 70], [30, 70], 'k--', alpha=0.3, linewidth=1, label='Perfect Correlation')
+# Add reference line (perfect correlation)
+min_val = min(min(walen_pcts), min(clark_pcts))
+max_val = max(max(walen_pcts), max(clark_pcts))
+ax2.plot([min_val, max_val], [min_val, max_val], 'k--', alpha=0.3, linewidth=1.5, label='Perfect Correlation')
 
 ax2.set_xlabel('Walen % (State Senator - Conservative)', fontsize=11, fontweight='bold')
-ax2.set_ylabel('Other Conservative Candidates %', fontsize=11, fontweight='bold')
-ax2.set_xlim(30, 70)
-ax2.set_ylim(30, 70)
-ax2.set_title('Conservative Vote Alignment', fontsize=12, fontweight='bold')
+ax2.set_ylabel('Clark % (Council Pos. 1 - Conservative)', fontsize=11, fontweight='bold')
+ax2.set_title('Walen vs. Clark Correlation by Precinct', fontsize=12, fontweight='bold')
 ax2.grid(alpha=0.3, linestyle='--')
 ax2.legend(loc='upper left', fontsize=10)
 
-# Add annotations
-ax2.annotate('Lee', xy=(walen_pct, lee_pct), xytext=(walen_pct + 1, lee_pct - 2),
-            fontsize=10, fontweight='bold')
-ax2.annotate('Clark', xy=(walen_pct, clark_pct), xytext=(walen_pct + 1, clark_pct + 2),
-            fontsize=10, fontweight='bold')
+# Add correlation coefficient
+corr_walen_clark, _ = pearsonr(walen_pcts, clark_pcts)
+ax2.text(0.98, 0.02, f'Correlation: {corr_walen_clark:.3f}', 
+         transform=ax2.transAxes, ha='right', va='bottom',
+         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5), fontsize=10)
 
 plt.tight_layout()
 plt.savefig('bellevue_ld48_analysis.png', dpi=300, bbox_inches='tight')
 print("\n✓ Visualization saved to 'bellevue_ld48_analysis.png'")
 
-# Create a detailed comparison table
-print("\n" + "=" * 80)
-print("DETAILED VOTE COMPARISON")
-print("=" * 80 + "\n")
-
-comparison_data = {
-    'Race': [
-        'State Senator',
-        'Council Position No. 1',
-        'Council Position No. 2'
-    ],
-    'Progressive': [
-        f"{race_results['State Senator']['progressive']['name']}: {race_results['State Senator']['progressive']['votes']} ({race_results['State Senator']['progressive']['pct']:.1f}%)",
-        f"{race_results['City Council Position No. 1']['progressive']['name']}: {race_results['City Council Position No. 1']['progressive']['votes']} ({race_results['City Council Position No. 1']['progressive']['pct']:.1f}%)",
-        f"{race_results['City Council Position No. 2']['progressive']['name']}: {race_results['City Council Position No. 2']['progressive']['votes']} ({race_results['City Council Position No. 2']['progressive']['pct']:.1f}%)"
-    ],
-    'Conservative': [
-        f"{race_results['State Senator']['conservative']['name']}: {race_results['State Senator']['conservative']['votes']} ({race_results['State Senator']['conservative']['pct']:.1f}%)",
-        f"{race_results['City Council Position No. 1']['conservative']['name']}: {race_results['City Council Position No. 1']['conservative']['votes']} ({race_results['City Council Position No. 1']['conservative']['pct']:.1f}%)",
-        f"{race_results['City Council Position No. 2']['conservative']['name']}: {race_results['City Council Position No. 2']['conservative']['votes']} ({race_results['City Council Position No. 2']['conservative']['pct']:.1f}%)"
-    ]
-}
-
-comparison_df = pd.DataFrame(comparison_data)
-print(comparison_df.to_string(index=False))
-
 # Analysis summary
-print("\n" + "=" * 80)
-print("KEY INSIGHTS")
-print("=" * 80 + "\n")
+print("\n" + "=" * 100)
+print("STATISTICAL SUMMARY")
+print("=" * 100 + "\n")
 
-# Calculate vote spreads
-slatter_spread = race_results['State Senator']['progressive']['pct'] - race_results['State Senator']['conservative']['pct']
-briar_spread = race_results['City Council Position No. 2']['progressive']['pct'] - race_results['City Council Position No. 2']['conservative']['pct']
-bhargava_spread = race_results['City Council Position No. 1']['progressive']['pct'] - race_results['City Council Position No. 1']['conservative']['pct']
+print(f"Walen vs. Lee Correlation: {corr_walen_lee:.3f}")
+print(f"Walen vs. Clark Correlation: {corr_walen_clark:.3f}")
+print(f"\nMean Conservative Vote %:")
+print(f"  Walen (State Senator): {np.mean(walen_pcts):.1f}%")
+print(f"  Lee (Council Pos. 2):  {np.mean(lee_pcts):.1f}%")
+print(f"  Clark (Council Pos. 1): {np.mean(clark_pcts):.1f}%")
 
-print(f"Progressive margin in State Senator race (Slatter vs. Walen): {slatter_spread:+.1f}%")
-print(f"Progressive margin in Council Pos. 2 race (Briar vs. Lee):    {briar_spread:+.1f}%")
-print(f"Progressive margin in Council Pos. 1 race (Bhargava vs. Clark): {bhargava_spread:+.1f}%")
-
-# Compare conservative performance
-walen_vs_lee = race_results['State Senator']['conservative']['pct'] - race_results['City Council Position No. 2']['conservative']['pct']
-walen_vs_clark = race_results['State Senator']['conservative']['pct'] - race_results['City Council Position No. 1']['conservative']['pct']
-
-print(f"\nConservative performance differential:")
-print(f"  Walen performed {walen_vs_lee:+.1f} percentage points vs. Lee")
-print(f"  Walen performed {walen_vs_clark:+.1f} percentage points vs. Clark")
+print(f"\nStandard Deviation:")
+print(f"  Walen: {np.std(walen_pcts):.1f}%")
+print(f"  Lee:   {np.std(lee_pcts):.1f}%")
+print(f"  Clark: {np.std(clark_pcts):.1f}%")
 
 print("\n✓ Analysis complete!")
